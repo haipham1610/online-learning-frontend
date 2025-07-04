@@ -11,7 +11,7 @@ function AddCourse() {
   const [languages, setLanguages] = useState([]);
   const [levels, setLevels] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [files, setFiles] = useState([]); // Files to be uploaded
+  const [file, setFile] = useState(null); // Single file to be uploaded
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -25,24 +25,23 @@ function AddCourse() {
           axios.get(`${API_BASE_URL}/api/Levels`),
           axios.get(`${API_BASE_URL}/api/Categories`),
         ]);
-
         setLanguages(
           langRes.data.map((lang) => ({
             value: lang.languageId,
             text: lang.languageName,
-          })),
+          }))
         );
         setLevels(
           levelRes.data.map((level) => ({
             value: level.levelId,
             text: level.levelName,
-          })),
+          }))
         );
         setCategories(
           catRes.data.map((cat) => ({
             value: cat.categoryId,
             text: cat.categoryName,
-          })),
+          }))
         );
       } catch (error) {
         console.error("Fetch Data Error:", error.response?.data || error.message);
@@ -55,46 +54,34 @@ function AddCourse() {
   }, []);
 
   const handleUploadChange = ({ fileList }) => {
-    // Calculate total files excluding removed files
-    const totalFiles = fileList.filter((f) => f.status !== "removed").length;
-
-    // Prevent adding more than 4 files
-    if (totalFiles > 4) {
-      message.error("Bạn chỉ có thể tải lên tối đa 4 ảnh!");
-      return;
+    // Since maxCount is 1, fileList will have at most 1 item
+    if (fileList.length > 0) {
+      setFile(fileList[0].originFileObj);
+    } else {
+      setFile(null);
     }
-
-    // Update files state with new files
-    const newFiles = fileList
-      .filter((f) => f.status !== "removed")
-      .map((f) => f.originFileObj)
-      .filter((f) => f);
-    setFiles(newFiles);
   };
 
-  const beforeUpload = (file, fileList) => {
-    // Calculate current total files
-    const currentTotalFiles = [...files, ...fileList].length;
-
-    // Check if adding new files exceeds the limit
-    if (currentTotalFiles > 4) {
-      message.error("Bạn chỉ có thể tải lên tối đa 4 ảnh!");
-      return false; // Prevent upload
+  const beforeUpload = (newFile) => {
+    // Prevent upload if a file is already selected
+    if (file) {
+      message.error("Bạn chỉ có thể tải lên tối đa 1 ảnh!");
+      return Upload.LIST_IGNORE; // Prevent adding to fileList
     }
 
     // Validate file type
     const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif"];
-    const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    const extension = newFile.name.slice(newFile.name.lastIndexOf(".")).toLowerCase();
     if (!allowedExtensions.includes(extension)) {
-      message.error(`File ${file.name} có định dạng không hợp lệ. Chỉ cho phép: ${allowedExtensions.join(", ")}`);
-      return false; // Prevent upload
+      message.error(`File ${newFile.name} có định dạng không hợp lệ. Chỉ cho phép: ${allowedExtensions.join(", ")}`);
+      return Upload.LIST_IGNORE;
     }
 
     // Validate file size (max 10MB)
     const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      message.error(`File ${file.name} vượt quá giới hạn 10MB`);
-      return false; // Prevent upload
+    if (newFile.size > maxSize) {
+      message.error(`File ${newFile.name} vượt quá giới hạn 10MB`);
+      return Upload.LIST_IGNORE;
     }
 
     return true; // Allow upload
@@ -103,28 +90,25 @@ function AddCourse() {
   const onFinish = async (values) => {
     setSubmitting(true);
     const formData = new FormData();
-
     formData.append("CourseName", values.courseName);
     formData.append("Description", values.description || "");
     formData.append("Creator", "Admin");
     formData.append("StudyTime", values.studyTime);
-
     if (values.languageId !== undefined && values.languageId !== null) {
       formData.append("LanguageID", values.languageId.toString());
     }
     if (values.levelId !== undefined && values.levelId !== null) {
       formData.append("LevelID", values.levelId.toString());
     }
-
     if (values.price !== undefined && values.price !== null) {
       formData.append("Price", values.price.toString());
     }
-
     if (Array.isArray(values.categoryId)) {
       values.categoryId.forEach((id) => formData.append("CategoryIDs", id.toString()));
     }
-
-    files.forEach((file) => formData.append("AttachmentFiles", file));
+    if (file) {
+      formData.append("AttachmentFiles", file);
+    }
 
     try {
       await axios.post(`${API_BASE_URL}/api/Courses`, formData, {
@@ -155,13 +139,14 @@ function AddCourse() {
     );
   }
 
-  const allFiles = files.map((file, index) => ({
-    uid: `new-${index}-${file.name}`,
+  // Prepare fileList for Ant Design Upload component
+  const currentFileList = file ? [{
+    uid: '1', // Unique ID for the file
     name: file.name,
-    status: "done",
+    status: 'done',
     url: URL.createObjectURL(file),
     originFileObj: file,
-  }));
+  }] : [];
 
   return (
     <div>
@@ -199,17 +184,16 @@ function AddCourse() {
                   </Form.Item>
                 </div>
                 <div>
-                  <Form.Item label="Hình ảnh khóa học (Tối đa 4 ảnh)">
+                  <Form.Item label="Hình ảnh khóa học (Tối đa 1 ảnh)">
                     <Upload
                       listType="picture-card"
-                      fileList={allFiles}
+                      fileList={currentFileList}
                       onChange={handleUploadChange}
                       beforeUpload={beforeUpload}
                       accept=".jpg,.jpeg,.png,.gif"
-                      multiple
-                      maxCount={4} // Limit to 4 files
+                      maxCount={1} // Limit to 1 file
                     >
-                      {allFiles.length < 4 && (
+                      {currentFileList.length < 1 && (
                         <div>
                           <UploadOutlined />
                           <div style={{ marginTop: 8 }}>Tải ảnh lên</div>

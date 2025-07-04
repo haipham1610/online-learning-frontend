@@ -13,21 +13,29 @@ function EditCourse() {
   const [languages, setLanguages] = useState([]);
   const [levels, setLevels] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [files, setFiles] = useState([]); // Files to be uploaded
-  const [existingImageFiles, setExistingImageFiles] = useState([]); // Existing images as Ant Design file objects
-  const [removedImageUrls, setRemovedImageUrls] = useState([]); // URLs of images to be removed
+  const [initialCourseImage, setInitialCourseImage] = useState(null); // Stores the raw URL of the image loaded from API
+  const [currentUploadFile, setCurrentUploadFile] = useState([]); // Ant Design's fileList format for the single image
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [courseRes, langRes, levelRes, catRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/api/Courses/${id}`),
+          axios.get(`${API_BASE_URL}/api/Courses/${id}`, {
+            headers: { "Cache-Control": "no-cache" },
+          }),
           axios.get(`${API_BASE_URL}/api/Languages`),
           axios.get(`${API_BASE_URL}/api/Levels`),
           axios.get(`${API_BASE_URL}/api/Categories`),
         ]);
+
+        if (courseRes.data.status === -1) {
+          setIsDeleted(true);
+          message.error("Khóa học đã bị xóa và không thể chỉnh sửa.");
+          return;
+        }
 
         const courseData = {
           courseName: courseRes.data.courseName,
@@ -42,36 +50,45 @@ function EditCourse() {
         };
         form.setFieldsValue(courseData);
 
-        // Convert existing image URLs to Ant Design file objects with full backend URL
-        const initialExistingFiles = (courseRes.data.imageUrls || []).map((url, index) => ({
-          uid: `existing-${index}-${url}`,
-          name: url.substring(url.lastIndexOf("/") + 1),
-          status: "done",
-          url: `${API_BASE_URL}${url}`,
-        }));
-        setExistingImageFiles(initialExistingFiles);
+        // Set initial image state
+        if (courseRes.data.imageUrls && courseRes.data.imageUrls.length > 0) {
+          const imageUrl = courseRes.data.imageUrls[0];
+          setInitialCourseImage(imageUrl); // Store raw URL
+          setCurrentUploadFile([
+            {
+              uid: `existing-0-${imageUrl}`, // Unique ID for existing file
+              name: imageUrl.substring(imageUrl.lastIndexOf("/") + 1),
+              status: "done",
+              url: imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`,
+              rawUrl: imageUrl, // Keep raw URL for removal
+            },
+          ]);
+        } else {
+          setInitialCourseImage(null);
+          setCurrentUploadFile([]);
+        }
 
         setLanguages(
           langRes.data.map((lang) => ({
             value: lang.languageId,
             text: lang.languageName,
-          })),
+          }))
         );
         setLevels(
           levelRes.data.map((level) => ({
             value: level.levelId,
             text: level.levelName,
-          })),
+          }))
         );
         setCategories(
           catRes.data.map((cat) => ({
             value: cat.categoryId,
             text: cat.categoryName,
-          })),
+          }))
         );
       } catch (error) {
         console.error("Fetch Data Error:", error.response?.data || error.message);
-        message.error("Không thể tải dữ liệu");
+        message.error("Không thể tải dữ liệu: " + (error.response?.data || error.message));
       } finally {
         setLoading(false);
       }
@@ -79,101 +96,101 @@ function EditCourse() {
     fetchData();
   }, [id, form]);
 
-  const handleUploadChange = ({ fileList }) => {
-    // Calculate total files (existing + new) excluding removed files
-    const totalFiles = fileList.filter((f) => f.status !== "removed").length;
-
-    // Prevent adding more than 4 files
-    if (totalFiles > 4) {
-      message.error("Bạn chỉ có thể tải lên tối đa 4 ảnh!");
-      return;
+  const handleUploadChange = ({ fileList, file: changedFile }) => {
+    // If a file was removed, and it was the existing one, clear the initialCourseImage
+    if (changedFile.status === 'removed' && changedFile.uid.startsWith('existing-')) {
+      setInitialCourseImage(null);
     }
-
-    // Filter out existing files that were removed
-    const currentExistingFiles = fileList.filter((f) => f.uid.startsWith("existing-") && f.status !== "removed");
-    setExistingImageFiles(currentExistingFiles);
-
-    // Filter out new files that are not yet uploaded
-    const newFiles = fileList
-      .filter((f) => !f.uid.startsWith("existing-") && f.status !== "removed")
-      .map((f) => f.originFileObj)
-      .filter((f) => f);
-    setFiles(newFiles);
-
-    // Track removed existing files
-    const removedUrls = fileList
-      .filter((f) => f.status === "removed" && f.uid.startsWith("existing-"))
-      .map((f) => f.url.replace(API_BASE_URL, ""));
-    setRemovedImageUrls(removedUrls);
+    // Always keep only the last file in the list (due to maxCount=1)
+    setCurrentUploadFile(fileList.slice(-1));
   };
 
-  const beforeUpload = (file, fileList) => {
-    // Calculate current total files (existing + new, excluding removed)
-    const currentTotalFiles = [
-      ...existingImageFiles.filter((f) => f.status !== "removed"),
-      ...files,
-      ...fileList,
-    ].length;
-
-    // Check if adding new files exceeds the limit
-    if (currentTotalFiles > 4) {
-      message.error("Bạn chỉ có thể tải lên tối đa 4 ảnh!");
-      return false; // Prevent upload
+  const beforeUpload = (newFile) => {
+    // If there's already a file (either existing or newly added but not yet processed), prevent new upload
+    if (currentUploadFile.length >= 1) {
+      message.error("Bạn chỉ có thể tải lên tối đa 1 ảnh!");
+      return Upload.LIST_IGNORE; // Prevent adding to fileList
     }
 
     // Validate file type
     const allowedExtensions = [".jpg", ".jpeg", ".png", ".gif"];
-    const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    const extension = newFile.name.slice(newFile.name.lastIndexOf(".")).toLowerCase();
     if (!allowedExtensions.includes(extension)) {
-      message.error(`File ${file.name} có định dạng không hợp lệ. Chỉ cho phép: ${allowedExtensions.join(", ")}`);
-      return false; // Prevent upload
+      message.error(`File ${newFile.name} có định dạng không hợp lệ. Chỉ cho phép: ${allowedExtensions.join(", ")}`);
+      return Upload.LIST_IGNORE;
     }
 
     // Validate file size (max 10MB)
     const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      message.error(`File ${file.name} vượt quá giới hạn 10MB`);
-      return false; // Prevent upload
+    if (newFile.size > maxSize) {
+      message.error(`File ${newFile.name} vượt quá giới hạn 10MB`);
+      return Upload.LIST_IGNORE;
     }
 
-    return true; // Allow upload
+    // Return false to prevent Ant Design from automatically uploading.
+    // We will handle the upload manually in onFinish.
+    return false;
   };
 
   const onFinish = async (values) => {
     setSubmitting(true);
     const formData = new FormData();
-
     formData.append("CourseName", values.courseName);
     formData.append("Description", values.description || "");
     formData.append("StudyTime", values.studyTime);
     formData.append("Status", values.status.toString());
-
     if (values.languageId !== undefined && values.languageId !== null) {
       formData.append("LanguageID", values.languageId.toString());
     }
     if (values.levelId !== undefined && values.levelId !== null) {
       formData.append("LevelID", values.levelId.toString());
     }
-
     if (values.price !== undefined && values.price !== null) {
       formData.append("Price", values.price.toString());
     }
-
     if (Array.isArray(values.categoryId)) {
-      values.categoryId.forEach((id) => formData.append("CategoryIDs", id.toString()));
+      values.categoryId.forEach((catId) => formData.append("CategoryIDs", catId.toString()));
     }
 
-    // Append newly selected files
-    files.forEach((file) => formData.append("AttachmentFiles", file));
+    // Determine if a new file is being uploaded
+    const newFileToUpload = currentUploadFile.length > 0 && !currentUploadFile[0].uid.startsWith("existing-")
+      ? currentUploadFile[0].originFileObj
+      : null;
 
-    // Append URLs of images to be removed
-    removedImageUrls.forEach((url) => formData.append("RemovedImageUrls", url));
+    // Determine if the existing image should be removed
+    // This happens if:
+    // 1. There was an initial image (loaded from API) AND
+    // 2. (The currentUploadFile is empty (user removed it) OR a new file is being uploaded (user replaced it))
+    const shouldRemoveExistingImage = initialCourseImage && (currentUploadFile.length === 0 || newFileToUpload);
+
+    if (shouldRemoveExistingImage) {
+      formData.append("RemovedImageUrls", initialCourseImage);
+    }
+
+    if (newFileToUpload) {
+      formData.append("AttachmentFiles", newFileToUpload);
+    }
 
     try {
       await axios.put(`${API_BASE_URL}/api/Courses/${id}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       message.success("Cập nhật khóa học thành công");
+      // After successful update, update initialCourseImage and currentUploadFile to reflect the new state
+      if (newFileToUpload) {
+        setInitialCourseImage(newFileToUpload.url || URL.createObjectURL(newFileToUpload));
+        setCurrentUploadFile([{
+          uid: `existing-0-${newFileToUpload.name}`, // Treat new file as existing after successful upload
+          name: newFileToUpload.name,
+          status: 'done',
+          url: URL.createObjectURL(newFileToUpload),
+          rawUrl: newFileToUpload.url || URL.createObjectURL(newFileToUpload), // Store URL for potential future removal
+        }]);
+      } else if (shouldRemoveExistingImage && !newFileToUpload) {
+        // If existing image was removed and no new one was uploaded
+        setInitialCourseImage(null);
+        setCurrentUploadFile([]);
+      }
       navigate("/admin/courses");
     } catch (error) {
       console.error("Update Course Error:", error.response?.data || error.message);
@@ -185,29 +202,29 @@ function EditCourse() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "400px",
-        }}
-      >
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "400px" }}>
         <div>Đang tải dữ liệu...</div>
       </div>
     );
   }
 
-  const allFiles = [
-    ...existingImageFiles,
-    ...files.map((file, index) => ({
-      uid: `new-${index}-${file.name}`,
-      name: file.name,
-      status: "done",
-      url: URL.createObjectURL(file),
-      originFileObj: file,
-    })),
-  ];
+  if (isDeleted) {
+    return (
+      <div>
+        <Space>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/admin/courses")}>
+            Quay lại
+          </Button>
+        </Space>
+        <h2 style={{ margin: "8px 0", fontSize: "24px", fontWeight: "bold" }}>
+          Lỗi: Khóa học đã bị xóa
+        </h2>
+        <p style={{ color: "#ff4d4f" }}>
+          Khóa học này đã bị xóa và không thể chỉnh sửa. Vui lòng quay lại danh sách khóa học.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -252,17 +269,16 @@ function EditCourse() {
                   </Form.Item>
                 </div>
                 <div>
-                  <Form.Item label="Hình ảnh khóa học (Tối đa 4 ảnh)">
+                  <Form.Item label="Hình ảnh khóa học (Tối đa 1 ảnh)">
                     <Upload
                       listType="picture-card"
-                      fileList={allFiles}
+                      fileList={currentUploadFile}
                       onChange={handleUploadChange}
                       beforeUpload={beforeUpload}
                       accept=".jpg,.jpeg,.png,.gif"
-                      multiple
-                      maxCount={4} // Limit to 4 files
+                      maxCount={1} // Limit to 1 file
                     >
-                      {allFiles.length < 4 && (
+                      {currentUploadFile.length < 1 && (
                         <div>
                           <UploadOutlined />
                           <div style={{ marginTop: 8 }}>Tải ảnh lên</div>
@@ -341,7 +357,12 @@ function EditCourse() {
                   gap: "12px",
                 }}
               >
-                <Button type="primary" htmlType="submit" loading={submitting} size="large">
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={submitting}
+                  size="large"
+                >
                   {submitting ? "Đang cập nhật..." : "Cập nhật khóa học"}
                 </Button>
                 <Button size="large" onClick={() => navigate("/admin/courses")}>

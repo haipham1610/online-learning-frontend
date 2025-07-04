@@ -34,22 +34,18 @@ function ManaCourse() {
         axios.get(`${API_BASE_URL}/api/Levels`),
         axios.get(`${API_BASE_URL}/api/Categories`),
       ]);
-
       if (!Array.isArray(courseRes.data)) {
         throw new Error("API response for courses is not an array");
       }
-
       const languagesMap = new Map(langRes.data.map((lang) => [lang.languageId, lang.languageName]));
       const levelsMap = new Map(levelRes.data.map((level) => [level.levelId, level.levelName]));
       const categoriesMap = new Map(catRes.data.map((cat) => [cat.categoryId, cat.categoryName]));
-
       const coursesWithDetails = courseRes.data.map((course, index) => {
         const trimmedCourseID = course.courseID ? course.courseID.trim() : `course-${index}`;
         const courseCategories = (course.categoryIDs || []).map((catId) => ({
           CategoryId: catId,
           CategoryName: categoriesMap.get(catId) || "N/A",
         }));
-
         return {
           ...course,
           key: trimmedCourseID,
@@ -59,7 +55,6 @@ function ManaCourse() {
           status: typeof course.status === "string" ? Number.parseInt(course.status, 10) : course.status,
         };
       });
-
       setCourses(coursesWithDetails);
       setPagination((prev) => ({
         ...prev,
