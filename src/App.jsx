@@ -1,84 +1,4 @@
-// import React, { useEffect } from "react";
-// import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
-// import { Toaster } from 'react-hot-toast';
 
-// // 📦 Pages
-// import Auth from "./pages/auth/Auth.jsx";
-// import Home from "./pages/Home.jsx";
-// import About from "./pages/About.jsx";
-// import Courses from "./pages/Courses.jsx";
-// import CourseDetails from "./pages/CourseDetails.jsx";
-// import Login from "./pages/auth/Login.jsx";
-// import Otp from "./pages/auth/Otp.jsx";
-// import Register from "./pages/auth/Register.jsx";
-
-// // 🔐 Admin Pages
-// import DiscountManagement from './components/discounts/DiscountManagement.jsx';
-// import UserManagement from './pages/admin/UserManagement';
-// import DashboardPage from "./pages/admin/DashboardPage";
-// import AdminRatingDashboard from "./components/ratings/CourseRatingsManager.jsx";
-
-// // 👨‍🎓 User Pages
-// import CourseRatingsManager from "./components/ratings/CourseRatingsManager";
-
-// // 🔐 Route guards
-// const RequireAdmin = ({ children }) => {
-//   const user = JSON.parse(localStorage.getItem("user"));
-//   const isAdmin = user && Array.isArray(user.roles) && user.roles.includes(1);
-//   return isAdmin ? children : <Navigate to="/login" />;
-// };
-
-// const RequireAuth = ({ children }) => {
-//   const user = JSON.parse(localStorage.getItem("user"));
-//   const token = localStorage.getItem("token");
-//   return user && token ? children : <Navigate to="/login" />;
-// };
-
-// function App() {
-//   return (
-//     <BrowserRouter>
-//       <Toaster
-//         position="top-right"
-//         toastOptions={{
-//           duration: 3000,
-//           style: { background: '#363636', color: '#fff' },
-//           success: { style: { background: '#10b981' } },
-//           error: { style: { background: '#ef4444' } },
-//         }}
-//       />
-
-//       <Routes>
-//         {/* Công khai */}
-//         <Route path="/" element={<Home />} />
-//         <Route path="/auth" element={<Auth />} />
-//         <Route path="/register" element={<Register />} />
-//         <Route path="/login" element={<Login />} />
-//         <Route path="/otp" element={<Otp />} />
-//         <Route path="/about" element={<About />} />
-//         <Route path="/courses" element={<Courses />} />
-//         <Route path="/courseDetail" element={<CourseDetails />} />
-
-//         {/* Học viên đã đăng nhập */}
-//         <Route path="/ratings" element={
-//           <RequireAuth>
-//             <CourseRatingsManager />
-//           </RequireAuth>
-//         } />
-
-//         {/* Admin */}
-//         <Route path="/admin/discounts" element={<RequireAdmin><DiscountManagement /></RequireAdmin>} />
-//         <Route path="/admin/users" element={<RequireAdmin><UserManagement /></RequireAdmin>} />
-//         <Route path="/admin/dashboard" element={<RequireAdmin><DashboardPage /></RequireAdmin>} />
-//         <Route path="/admin/ratings" element={<RequireAdmin><AdminRatingDashboard /></RequireAdmin>} />
-
-//         {/* 404 fallback */}
-//         <Route path="*" element={<Navigate to="/" replace />} />
-//       </Routes>
-//     </BrowserRouter>
-//   );
-// }
-
-// export default App;
 
 
 
@@ -94,6 +14,9 @@ import Home from "./pages/Home.jsx";
 import About from "./pages/About.jsx";
 import Courses from "./pages/Courses.jsx";
 import CourseDetails from "./pages/CourseDetails.jsx";
+import ManaCourse from "./pages/admin/ManaCourse.jsx";
+import AddCourse from "./pages/admin/AddCourse.jsx";
+import EditCourse from "./pages/admin/EditCourse.jsx";
 import Login from "./pages/auth/Login.jsx";
 import Otp from "./pages/auth/Otp.jsx";
 import Register from "./pages/auth/Register.jsx";
@@ -147,7 +70,6 @@ const RequireAuth = ({ children }) => {
   const token = localStorage.getItem("token");
   return user && token ? children : <Navigate to="/login" />;
 };
-
 function App() {
   return (
     <BrowserRouter>
@@ -193,6 +115,11 @@ function App() {
 
         {/* 404 fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
+
+        <Route path="/manaCourse" element={<ManaCourse />} />
+        <Route path="/manaCourses/add" element={<AddCourse />} />
+        <Route path="/manaCourses/edit/:id" element={<EditCourse />} />
+
       </Routes>
     </BrowserRouter>
   );

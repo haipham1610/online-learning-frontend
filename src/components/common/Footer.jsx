@@ -8,8 +8,22 @@ function Footer() {
           {/* Logo and Description Section */}
           <div className="space-y-4">
             <div>
-              <a href="index.html">
-                <img src="img/logo.png" alt="Logo" className="h-12" />
+              <a href="/" className="flex items-center">
+                <img
+                  src="/img/logo.png" // Vite root-relative path
+                  alt="Logo"
+                  className="h-12"
+                  onError={(e) => {
+                    console.error("Logo load failed:", {
+                      error: e,
+                      src: e.target.src,
+                      currentSrc: e.target.currentSrc,
+                      baseURI: document.baseURI,
+                    }); // Detailed logging
+                    e.target.src = "https://via.placeholder.com/150"; // Fallback
+                  }}
+                  onLoad={() => console.log("Logo loaded successfully:", document.baseURI)} // Confirm load
+                />
               </a>
             </div>
             <p className="text-gray-600">
@@ -66,12 +80,12 @@ function Footer() {
         <div className="container mx-auto px-4">
           <div className="py-6 text-center">
             <p className="text-gray-600">
-              Copyright &copy; {new Date().getFullYear()}{" "}
+              Copyright © {new Date().getFullYear()}{" "}
               All rights reserved | This template is made with{" "}
               <i className="ti-heart text-red-500" aria-hidden="true"></i> by{" "}
-              <a 
-                href="https://colorlib.com" 
-                target="_blank" 
+              <a
+                href="https://colorlib.com"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:text-blue-800 transition-colors"
               >
